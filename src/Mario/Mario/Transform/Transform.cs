@@ -6,9 +6,9 @@ namespace Mario.Transform
     {
         public IEnumerable<StepIo<TNextInput, TNextOutput>> Do(IEnumerable<IStepIo<TCurrentInput, TCurrentOutput>> inputs)
         {
-            foreach (var stepData in inputs)
+            foreach (var input in inputs)
             {
-                var workitem = ((IGetWorkitem)stepData).GetWorkitem();
+                var workitem = ((IGetWorkitem)input).GetWorkitem();
                 var nextStepData = new StepIo<TNextInput, TNextOutput>(workitem);
                 yield return nextStepData;
             }

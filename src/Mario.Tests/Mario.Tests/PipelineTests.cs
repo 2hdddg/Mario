@@ -30,7 +30,7 @@ namespace Mario.Tests
             var pipeline = new Pipeline<int>();
             var step = new Step<string, string>(s => s);
 
-            Assert.Throws<Exception>(() => pipeline.Step<string, string>(step.Process));
+            Assert.Throws<Exception>(() => pipeline.Process<string, string>(step.Process));
         }
 
         [Test]
@@ -38,11 +38,11 @@ namespace Mario.Tests
         {
             var pipeline = new Pipeline<int>();
             var step = new Step<int, string>(n => n.ToString(CultureInfo.InvariantCulture));
-            pipeline.Step<int, string>(step.Process);
+            pipeline.Process<int, string>(step.Process);
 
-            var processed = (IEnumerable<IStepIo<int, string>>)pipeline.Execute(new[] { 7 });
+            var processed = pipeline.GetResult<string>(new[] { 7 });
 
-            Assert.That(processed.Single().Input, Is.EqualTo(7));
+            Assert.That(processed.Single(), Is.EqualTo("7"));
         }
     }
 }

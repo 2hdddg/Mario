@@ -45,7 +45,8 @@
     <Compile Include="IStepIo.cs" />
     <Compile Include="Pipeline.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Transform\RootTransform.cs" />
+    <Compile Include="Transform\FirstTransform.cs" />
+    <Compile Include="Transform\LastTransform.cs" />
     <Compile Include="Transform\StepIo.cs" />
     <Compile Include="Transform\Transform.cs" />
     <Compile Include="Transform\Workitem.cs" />

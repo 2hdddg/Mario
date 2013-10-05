@@ -8,7 +8,7 @@ namespace Mario
 {
     public class Pipeline<TSeed>
     {
-        private struct StepTransform
+        private struct StepDefinition
         {
             public Type Input { get; set; }
             public Type Output { get; set; }
@@ -16,29 +16,29 @@ namespace Mario
             public object ProcessorTarget { get; set; }
         }
 
-        private readonly IList<StepTransform> _stepTransforms;
+        private readonly IList<StepDefinition> _definitions;
 
         public Pipeline()
         {
-            _stepTransforms = new List<StepTransform>();
+            _definitions = new List<StepDefinition>();
         }
 
-        private object Root(IEnumerable<TSeed> inputs)
+        private object First(IEnumerable<TSeed> inputs)
         {
-            var first = _stepTransforms[0];
+            var first = _definitions.First();
 
-            var rootTransformType = typeof(RootTransform<,>).MakeGenericType(new[] { typeof(TSeed), first.Output });
-            var rootTransform = rootTransformType.GetConstructors().First().Invoke(new object[0]);
-            var transformMethod = rootTransformType.GetMethod("Do");
-            var transformOutput = transformMethod.Invoke(rootTransform, new object[] { inputs });
-            var stepOutput = first.ProcessorMethod.Invoke(first.ProcessorTarget, new[] { transformOutput });
+            var transformType = typeof(FirstTransform<,>).MakeGenericType(new[] { typeof(TSeed), first.Output });
+            var transform = transformType.GetConstructors().First().Invoke(new object[0]);
+            var method = transformType.GetMethod("Do");
+            var output = method.Invoke(transform, new object[] { inputs });
+            var stepOutput = first.ProcessorMethod.Invoke(first.ProcessorTarget, new[] { output });
 
             return stepOutput;
         }
 
-        private object Next(StepTransform current, object inputs)
+        private object Next(StepDefinition current, object inputs)
         {
-            var previous = _stepTransforms[_stepTransforms.Count - 1];
+            var previous = _definitions[_definitions.Count - 1];
             var transformType = typeof(Transform<,,,>).MakeGenericType(new[] { current.Input, current.Output, previous.Input, previous.Output });
             var tranform = transformType.GetConstructors().First().Invoke(new object[0]);
             var transformMethod = transformType.GetMethod("Do");
@@ -48,31 +48,43 @@ namespace Mario
             return stepOutput;
         }
 
+        private IEnumerable<TOutput> Last<TOutput>(object inputs)
+        {
+            var last = _definitions.Last();
+
+            var transformType = typeof(LastTransform<,,>).MakeGenericType(new[] { last.Input, last.Output, typeof(TOutput) });
+            var transform = transformType.GetConstructors().First().Invoke(new object[0]);
+            var method = transformType.GetMethod("Do");
+            var output = method.Invoke(transform, new [] { inputs });
+
+            return (IEnumerable<TOutput>)output;
+        }
+
         private object Build(IEnumerable<TSeed> inputs)
         {
-            if (_stepTransforms.Count == 0) throw new Exception("Nothing to do");
+            if (_definitions.Count == 0) throw new Exception("Nothing to do");
 
-            var output = Root(inputs);
-            foreach (var current in _stepTransforms.Skip(1))
+            var output = First(inputs);
+            foreach (var current in _definitions.Skip(1))
             {
                 output = Next(current, output);
             }
             return output;
         }
 
-        public void Step<TInput, TOutput>(ProcessorDelegate<TInput, TOutput> processor)
+        public void Process<TInput, TOutput>(ProcessorDelegate<TInput, TOutput> processor)
         {
             var input = typeof(TInput);
             var output = typeof(TOutput);
 
             // Check that requested input is outputted from prior steps in chain
             if (input != typeof(TSeed) &&
-                _stepTransforms.All(s => s.Output != input))
+                _definitions.All(s => s.Output != input))
             {
                 throw new Exception("Requested input cannot be satisfied!");
             }
 
-            var nextStep = new StepTransform
+            var nextStep = new StepDefinition
                 {
                     Input = input,
                     Output = output,
@@ -80,12 +92,12 @@ namespace Mario
                     ProcessorTarget = processor.Target
                 };
 
-            _stepTransforms.Add(nextStep);
+            _definitions.Add(nextStep);
         }
 
-        public object Execute(IEnumerable<TSeed> inputs)
+        public IEnumerable<TOutput> GetResult<TOutput>(IEnumerable<TSeed> inputs)
         {
-            return Build(inputs);
+            return Last<TOutput>(Build(inputs));
         }
     }
 }

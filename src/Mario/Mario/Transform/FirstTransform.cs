@@ -2,7 +2,7 @@
 
 namespace Mario.Transform
 {
-    internal class RootTransform<TInput, TOutput>
+    internal class FirstTransform<TInput, TOutput>
     {
         public IEnumerable<StepIo<TInput, TOutput>> Do(IEnumerable<TInput> inputs)
         {
