@@ -41,7 +41,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Transform\IGetWorkitem.cs" />
-    <Compile Include="IStep.cs" />
     <Compile Include="IStepIo.cs" />
     <Compile Include="Pipeline.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
