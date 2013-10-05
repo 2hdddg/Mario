@@ -1,73 +1,91 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Mario.Transform;
 
 namespace Mario
 {
     public class Pipeline<TSeed>
     {
-        private readonly IEnumerable<TSeed> _inputs;
-
         private struct StepTransform
         {
             public Type Input { get; set; }
             public Type Output { get; set; }
-            public object Enumerable { get; set; }
+            public MethodInfo ProcessorMethod { get; set; }
+            public object ProcessorTarget { get; set; }
         }
 
         private readonly IList<StepTransform> _stepTransforms;
 
-        public Pipeline(IEnumerable<TSeed> inputs)
+        public Pipeline()
         {
-            _inputs = inputs;
             _stepTransforms = new List<StepTransform>();
         }
 
-        public void Step<TInput, TOutput>(IStep<TInput, TOutput> step)
+        private object Root(IEnumerable<TSeed> inputs)
         {
-            var nextStep = new StepTransform
+            var first = _stepTransforms[0];
+
+            var rootTransformType = typeof(RootTransform<,>).MakeGenericType(new[] { typeof(TSeed), first.Output });
+            var rootTransform = rootTransformType.GetConstructors().First().Invoke(new object[0]);
+            var transformMethod = rootTransformType.GetMethod("Do");
+            var transformOutput = transformMethod.Invoke(rootTransform, new object[] { inputs });
+            var stepOutput = first.ProcessorMethod.Invoke(first.ProcessorTarget, new[] { transformOutput });
+
+            return stepOutput;
+        }
+
+        private object Next(StepTransform current, object inputs)
+        {
+            var previous = _stepTransforms[_stepTransforms.Count - 1];
+            var transformType = typeof(Transform<,,,>).MakeGenericType(new[] { current.Input, current.Output, previous.Input, previous.Output });
+            var tranform = transformType.GetConstructors().First().Invoke(new object[0]);
+            var transformMethod = transformType.GetMethod("Do");
+            var transformOutput = transformMethod.Invoke(tranform, new[] { inputs });
+            var stepOutput = current.ProcessorMethod.Invoke(current.ProcessorTarget, new[] { transformOutput });
+
+            return stepOutput;
+        }
+
+        private object Build(IEnumerable<TSeed> inputs)
+        {
+            if (_stepTransforms.Count == 0) throw new Exception("Nothing to do");
+
+            var output = Root(inputs);
+            foreach (var current in _stepTransforms.Skip(1))
             {
-                Input = typeof(TInput),
-                Output = typeof(TOutput)
-            };
+                output = Next(current, output);
+            }
+            return output;
+        }
+
+        public void Step<TInput, TOutput>(ProcessorDelegate<TInput, TOutput> processor)
+        {
+            var input = typeof(TInput);
+            var output = typeof(TOutput);
 
             // Check that requested input is outputted from prior steps in chain
-            if (nextStep.Input != typeof(TSeed) &&
-                _stepTransforms.All(s => s.Output != nextStep.Input))
+            if (input != typeof(TSeed) &&
+                _stepTransforms.All(s => s.Output != input))
             {
                 throw new Exception("Requested input cannot be satisfied!");
             }
 
-            var stepMethod = step.GetType().GetMethod("Process");
-
-            if (_stepTransforms.Count == 0)
-            {
-                var rootTransformType = typeof(RootTransform<,>).MakeGenericType(new[] { typeof(TSeed), nextStep.Output });
-                var rootTransform = rootTransformType.GetConstructors().First().Invoke(new object[0]);
-                var transformMethod = rootTransformType.GetMethod("Do");
-                var transformOutput = transformMethod.Invoke(rootTransform, new object[] { _inputs });
-                var stepOutput = stepMethod.Invoke(step, new[] { transformOutput });
-                nextStep.Enumerable = stepOutput;
-            }
-            else
-            {
-                var previousStep = _stepTransforms[_stepTransforms.Count - 1];
-                var transformType = typeof(Transform<,,,>).MakeGenericType(new[] { nextStep.Input, nextStep.Output, previousStep.Input, previousStep.Output });
-                var tranform = transformType.GetConstructors().First().Invoke(new object[0]);
-                var transformMethod = transformType.GetMethod("Do");
-                var transformOutput = transformMethod.Invoke(tranform, new[] { previousStep.Enumerable });
-                var stepOutput = stepMethod.Invoke(step, new[] { transformOutput });
-                nextStep.Enumerable = stepOutput;
-            }
+            var nextStep = new StepTransform
+                {
+                    Input = input,
+                    Output = output,
+                    ProcessorMethod = processor.Method,
+                    ProcessorTarget = processor.Target
+                };
 
             _stepTransforms.Add(nextStep);
         }
 
-        public object Execute()
+        public object Execute(IEnumerable<TSeed> inputs)
         {
-            var lastStep = _stepTransforms[_stepTransforms.Count - 1];
-            return lastStep.Enumerable;
+            return Build(inputs);
         }
     }
 }

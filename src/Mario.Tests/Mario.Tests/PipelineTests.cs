@@ -9,7 +9,7 @@ namespace Mario.Tests
     [TestFixture]
     public class PipelineTests
     {
-        private class Step<TInput, TOutput> : IStep<TInput, TOutput>
+        private class Step<TInput, TOutput>
         {
             private readonly Func<TInput, TOutput> _convert;
 
@@ -27,20 +27,20 @@ namespace Mario.Tests
         [Test]
         public void Should_throw_if_first_step_requests_input_of_other_type_than_seed()
         {
-            var pipeline = new Pipeline<int>(new int[0]);
+            var pipeline = new Pipeline<int>();
             var step = new Step<string, string>(s => s);
 
-            Assert.Throws<Exception>(() => pipeline.Step(step));
+            Assert.Throws<Exception>(() => pipeline.Step<string, string>(step.Process));
         }
 
         [Test]
         public void Can_get_result_from_pipeline_with_one_step()
         {
-            var pipeline = new Pipeline<int>(new [] {7});
+            var pipeline = new Pipeline<int>();
             var step = new Step<int, string>(n => n.ToString(CultureInfo.InvariantCulture));
-            pipeline.Step(step);
+            pipeline.Step<int, string>(step.Process);
 
-            var processed = (IEnumerable<IStepIo<int, string>>)pipeline.Execute();
+            var processed = (IEnumerable<IStepIo<int, string>>)pipeline.Execute(new[] { 7 });
 
             Assert.That(processed.Single().Input, Is.EqualTo(7));
         }
